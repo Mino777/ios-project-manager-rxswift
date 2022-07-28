@@ -6,7 +6,8 @@
 //
 
 import Foundation
-import Combine
+
+import RxSwift
 
 enum TodoEditViewModelState {
     case itemEvent(item: Todo)
@@ -23,7 +24,7 @@ protocol TodoEditViewModelInput {
 }
 
 protocol TodoEditViewModelOutput {
-    var state: PassthroughSubject<TodoEditViewModelState, Never> { get }
+    var state: PublishSubject<TodoEditViewModelState> { get }
 }
 
 protocol TodoEditViewModelable: TodoEditViewModelInput, TodoEditViewModelOutput {}
@@ -32,12 +33,11 @@ final class TodoEditViewModel: TodoEditViewModelable {
     
     // MARK: - Output
         
-    let state = PassthroughSubject<TodoEditViewModelState, Never>()
+    let state = PublishSubject<TodoEditViewModelState>()
     
     private let todo: Todo
     private let todoUseCase: TodoListUseCaseable
     private let historyUseCase: TodoHistoryUseCaseable
-    private var cancellableBag = Set<AnyCancellable>()
     
     init(todoUseCase: TodoListUseCaseable, historyUseCase: TodoHistoryUseCaseable, item: Todo) {
         self.todoUseCase = todoUseCase
@@ -51,8 +51,8 @@ extension TodoEditViewModel {
     // MARK: - Input
     
     func viewDidLoad() {
-        state.send(.viewTitleEvent(title: "TODO"))
-        state.send(.itemEvent(item: todo))
+        state.onNext(.viewTitleEvent(title: "TODO"))
+        state.onNext(.itemEvent(item: todo))
     }
     
     func didTapDoneButton(title: String?, content: String?, deadline: Date?) {
@@ -79,32 +79,18 @@ extension TodoEditViewModel {
         let historyItem = TodoHistory(title: "[수정] \(title)", createdAt: Date())
         createHistoryItem(historyItem)
 
-        state.send(.dismissEvent)
+        state.onNext(.dismissEvent)
     }
     
     private func updateTodoItem(_ item: Todo) {
         todoUseCase.update(item)
-        .sink(
-            receiveCompletion: {
-                guard case .failure(let error) = $0 else { return}
-                self.state.send(.errorEvent(message: error.localizedDescription))
-            }, receiveValue: {}
-        )
-        .store(in: &cancellableBag)
     }
     
     private func createHistoryItem(_ item: TodoHistory) {
         historyUseCase.create(item)
-            .sink(
-                receiveCompletion: {
-                    guard case .failure(let error) = $0 else { return}
-                    self.state.send(.errorEvent(message: error.localizedDescription))
-                }, receiveValue: {}
-            )
-            .store(in: &cancellableBag)
     }
     
     func didTapEditButton() {
-        state.send(.isEdited)
+        state.onNext(.isEdited)
     }
 }

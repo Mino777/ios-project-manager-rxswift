@@ -6,14 +6,15 @@
 //
 
 import UIKit
-import Combine
+
+import RxSwift
 
 final class TodoEditViewController: UIViewController, Alertable {
     weak var coordiantor: TodoEditViewCoordinator?
     private let todoDetailView = TodoDetailView()
     private let viewModel: TodoEditViewModelable
     
-    private var cancellableBag = Set<AnyCancellable>()
+    private let disposeBag = DisposeBag()
     
     init(viewModel: TodoEditViewModelable) {
         self.viewModel = viewModel
@@ -38,23 +39,24 @@ final class TodoEditViewController: UIViewController, Alertable {
     
     private func bind() {
         viewModel.state
-            .sink { [weak self] state in
+            .withUnretained(self)
+            .subscribe { wself, state in
                 switch state {
                 case .itemEvent(let item):
-                    self?.todoDetailView.titleTextField.text = item.title
-                    self?.todoDetailView.datePicker.date = item.deadline
-                    self?.todoDetailView.contentTextView.text = item.content
+                    wself.todoDetailView.titleTextField.text = item.title
+                    wself.todoDetailView.datePicker.date = item.deadline
+                    wself.todoDetailView.contentTextView.text = item.content
                 case .viewTitleEvent(let title):
-                    self?.title = title
+                    wself.title = title
                 case .isEdited:
-                    self?.setupNavigationLeftBarButtonItem()
-                    self?.todoDetailView.setupUserInteractionEnabled(true)
+                    wself.setupNavigationLeftBarButtonItem()
+                    wself.todoDetailView.setupUserInteractionEnabled(true)
                 case .dismissEvent:
-                    self?.coordiantor?.dismiss()
+                    wself.coordiantor?.dismiss()
                 case .errorEvent(let message):
-                    self?.showErrorAlertWithConfirmButton(message)
+                    wself.showErrorAlertWithConfirmButton(message)
                 }
-            }.store(in: &cancellableBag)
+            }.disposed(by: disposeBag)
     }
     
     private func setup() {

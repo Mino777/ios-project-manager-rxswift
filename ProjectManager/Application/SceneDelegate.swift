@@ -7,6 +7,7 @@
 import UIKit
 
 import FirebaseCore
+import Network
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     private var appCoorinator: AppCoordinator?
@@ -33,14 +34,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     
     private func setup() {
         setupLibrarys()
-        setupUtils()
     }
     
     private func setupLibrarys() {
         FirebaseApp.configure()
-    }
-    
-    private func setupUtils() {
-        NetworkMonitor.shared.start()
     }
 }

@@ -6,8 +6,9 @@
 //
 
 import UIKit
-import Combine
 
+import RxSwift
+import RxCocoa
 import SnapKit
 
 final class TodoListViewController: UIViewController, Alertable {
@@ -16,7 +17,7 @@ final class TodoListViewController: UIViewController, Alertable {
     private lazy var todoListView = dependency.makeTodoListView()
     private let viewModel: TodoListViewModelable
     
-    private var cancellableBag = Set<AnyCancellable>()
+    private let disposeBag = DisposeBag()
     
     init(viewModel: TodoListViewModelable, dependency: TodoListDIContainer) {
         self.viewModel = viewModel
@@ -43,31 +44,33 @@ final class TodoListViewController: UIViewController, Alertable {
     
     private func bind() {
         viewModel.state
-            .sink { [weak self] state in
+            .withUnretained(self)
+            .subscribe { wself, state in
                 switch state {
                 case .viewTitleEvent(let title):
-                    self?.title = title
+                    wself.title = title
                 case .errorEvent(let message):
-                    self?.showErrorAlertWithConfirmButton(message)
+                    wself.showErrorAlertWithConfirmButton(message)
                 case .showEditViewEvent(let item):
-                    self?.coordinator?.showEditViewController(item)
+                    wself.coordinator?.showEditViewController(item)
                 case .showHistoryViewEvent:
-                    guard let sourceView = self?.navigationItem.leftBarButtonItem else {
+                    guard let sourceView = wself.navigationItem.leftBarButtonItem else {
                         return
                     }
-                    self?.coordinator?.showHistoryViewController(sourceView: sourceView)
+                    wself.coordinator?.showHistoryViewController(sourceView: sourceView)
                 case .showCreateViewEvent:
-                    self?.coordinator?.showCreateViewController()
+                    wself.coordinator?.showCreateViewController()
                 }
-            }
-            .store(in: &cancellableBag)
+            }.disposed(by: disposeBag)
         
-        viewModel.isNetworkConnected
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] status in
-                self?.todoListView.networkStatusImageView.image = UIImage(systemName: status)
+        
+        viewModel.networkMonitor.rx.pathUpdated
+            .map { $0.status == .satisfied
+              ? UIImage(systemName: "wifi")
+              : UIImage(systemName: "wifi.slash")
             }
-            .store(in: &cancellableBag)
+            .bind(to: todoListView.networkStatusImageView.rx.image)
+            .disposed(by: disposeBag)
     }
     
     private func addSubviews() {

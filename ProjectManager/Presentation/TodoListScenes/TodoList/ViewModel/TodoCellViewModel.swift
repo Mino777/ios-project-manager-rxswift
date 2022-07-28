@@ -6,7 +6,8 @@
 //
 
 import Foundation
-import Combine
+
+import RxSwift
 
 enum TodoCellViewModelState {
     case todoTitleEvent(title: String)
@@ -21,7 +22,7 @@ protocol TodoCellViewModelInput {
 }
 
 protocol TodoCellViewModelOutput {
-    var state: PassthroughSubject<TodoCellViewModelState, Never> { get }
+    var state: PublishSubject<TodoCellViewModelState> { get }
 }
 
 protocol TodoCellViewModelable: TodoCellViewModelInput, TodoCellViewModelOutput {}
@@ -30,7 +31,7 @@ final class TodoCellViewModel: TodoCellViewModelable {
     
     // MARK: - Output
     
-    let state = PassthroughSubject<TodoCellViewModelState, Never>()
+    let state = PublishSubject<TodoCellViewModelState>()
     
     private let todo: Todo
     private let dateformatter: DateFormatter = {
@@ -46,9 +47,9 @@ final class TodoCellViewModel: TodoCellViewModelable {
     
     private func setDateLabelColor() {
         if Date() > endOfTheDay(for: todo.deadline) ?? Date() {
-            state.send(.expiredEvent)
+            state.onNext(.expiredEvent)
         } else {
-            state.send(.notExpiredEvent)
+            state.onNext(.notExpiredEvent)
         }
     }
     
@@ -68,9 +69,9 @@ extension TodoCellViewModel {
     // MARK: - Input
     
     func cellDidBind() {
-        self.state.send(.todoTitleEvent(title: todo.title))
-        self.state.send(.todoContentEvent(content: todo.content))
-        self.state.send(.todoDeadlineEvent(deadline: dateformatter.string(from: todo.deadline)))
+        self.state.onNext(.todoTitleEvent(title: todo.title))
+        self.state.onNext(.todoContentEvent(content: todo.content))
+        self.state.onNext(.todoDeadlineEvent(deadline: dateformatter.string(from: todo.deadline)))
         
         setDateLabelColor()
     }

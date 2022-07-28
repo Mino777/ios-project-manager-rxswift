@@ -7,7 +7,7 @@
 
 import UIKit
 
-import Combine
+import RxSwift
 
 final class TodoView: UIView {
     private typealias DataSource = UITableViewDiffableDataSource<Int, Todo>
@@ -16,7 +16,7 @@ final class TodoView: UIView {
     private let headerView: TodoHeaderView
     private let viewModel: TodoViewModelable
     
-    private var cancellableBag = Set<AnyCancellable>()
+    private let disposeBag = DisposeBag()
     private var dataSource: DataSource?
         
     private let stackView: UIStackView = {
@@ -55,11 +55,12 @@ final class TodoView: UIView {
     
     private func bind() {
         viewModel.items
-            .sink { [weak self] items in
-                self?.applySnapshot(items: items)
-                self?.headerView.setupHeaderTodoCountLabel(with: items.count)
+            .withUnretained(self)
+            .subscribe { wself, items in
+                wself.applySnapshot(items: items)
+                wself.headerView.setupHeaderTodoCountLabel(with: items.count)
             }
-            .store(in: &cancellableBag)
+            .disposed(by: disposeBag)
     }
     
     private func addSubviews() {

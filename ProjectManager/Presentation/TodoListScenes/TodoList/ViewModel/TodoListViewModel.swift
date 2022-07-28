@@ -6,7 +6,8 @@
 //
 
 import Foundation
-import Combine
+import RxSwift
+import Network
 
 enum TodoListViewModelState {
     case viewTitleEvent(title: String)
@@ -23,9 +24,9 @@ protocol TodoListViewModelInput {
 }
 
 protocol TodoListViewModelOutput {
-    var isNetworkConnected: AnyPublisher<String, Never> { get }
+    var networkMonitor: NWPathMonitor { get }
 
-    var state: PassthroughSubject<TodoListViewModelState, Never> { get }
+    var state: PublishSubject<TodoListViewModelState> { get }
 }
 
 protocol TodoListViewModelable: TodoListViewModelInput, TodoListViewModelOutput {}
@@ -34,35 +35,18 @@ final class TodoListViewModel: TodoListViewModelable {
     
     // MARK: - Output
     
-    var isNetworkConnected: AnyPublisher<String, Never> {
-        return NetworkMonitor.shared.$isConnected
-            .map { isConnect in
-                if isConnect {
-                    return "wifi"
-                } else {
-                    return "wifi.slash"
-                }
-            }
-            .eraseToAnyPublisher()
-    }
+    let networkMonitor = NWPathMonitor()
     
-    var todoItems: AnyPublisher<[Todo], Never> {
-        return todoUseCase.todosPublisher().eraseToAnyPublisher()
-    }
-    
-    var historyItems: AnyPublisher<[TodoHistory], Never> {
-        return historyUseCase.todoHistoriesPublisher().eraseToAnyPublisher()
-    }
-
-    let state = PassthroughSubject<TodoListViewModelState, Never>()
+    let todoStorageState: Observable<TodoStorageState>
+    let state = PublishSubject<TodoListViewModelState>()
     
     private let todoUseCase: TodoListUseCaseable
     private let historyUseCase: TodoHistoryUseCaseable
-    private var cancellableBag = Set<AnyCancellable>()
     
     init(todoUseCase: TodoListUseCaseable, historyUseCase: TodoHistoryUseCaseable) {
         self.todoUseCase = todoUseCase
         self.historyUseCase = historyUseCase
+        self.todoStorageState = todoUseCase.todosPublisher()
     }
 }
 
@@ -71,75 +55,41 @@ extension TodoListViewModel {
     // MARK: - Input
     
     func viewDidLoad() {
-        state.send(.viewTitleEvent(title: "Project Manager"))
-        todoUseCase.synchronizeDatabase()
+        state.onNext(.viewTitleEvent(title: "Project Manager"))
     }
     
     func didTapAddButton() {
-        state.send(.showCreateViewEvent)
+        state.onNext(.showCreateViewEvent)
     }
     
     func didTapHistoryButton() {
-        state.send(.showHistoryViewEvent)
+        state.onNext(.showHistoryViewEvent)
     }
 }
 
 extension TodoListViewModel: TodoViewModelInput {
     func deleteItem(_ item: Todo) {
-        deleteTodoItem(item)
+        todoUseCase.delete(item: item)
         
         let historyItem = TodoHistory(title: "[삭제] \(item.title)", createdAt: Date())
-        createHistoryItem(historyItem)
+        historyUseCase.create(historyItem)
     }
     
     func didTapCell(_ item: Todo) {
-        state.send(.showEditViewEvent(item: item))
+        state.onNext(.showEditViewEvent(item: item))
     }
     
     func didTapFirstContextMenu(_ item: Todo) {
-        updateTodoItem(item)
+        todoUseCase.update(item)
         
         let historyItem = TodoHistory(title: "[수정] \(item.title)", createdAt: Date())
-        createHistoryItem(historyItem)
+        historyUseCase.create(historyItem)
     }
     
     func didTapSecondContextMenu(_ item: Todo) {
-        updateTodoItem(item)
+        todoUseCase.update(item)
         
         let historyItem = TodoHistory(title: "[수정] \(item.title)", createdAt: Date())
-        createHistoryItem(historyItem)
-    }
-    
-    private func updateTodoItem(_ item: Todo) {
-        todoUseCase.update(item)
-        .sink(
-            receiveCompletion: {
-                guard case .failure(let error) = $0 else { return}
-                self.state.send(.errorEvent(message: error.localizedDescription))
-            }, receiveValue: {}
-        )
-        .store(in: &cancellableBag)
-    }
-    
-    private func deleteTodoItem(_ item: Todo) {
-        todoUseCase.delete(item: item)
-            .sink(
-                receiveCompletion: {
-                    guard case .failure(let error) = $0 else { return}
-                    self.state.send(.errorEvent(message: error.localizedDescription))
-                }, receiveValue: {}
-            )
-            .store(in: &cancellableBag)
-    }
-    
-    private func createHistoryItem(_ item: TodoHistory) {
-        historyUseCase.create(item)
-            .sink(
-                receiveCompletion: {
-                    guard case .failure(let error) = $0 else { return}
-                    self.state.send(.errorEvent(message: error.localizedDescription))
-                }, receiveValue: {}
-            )
-            .store(in: &cancellableBag)
+        historyUseCase.create(historyItem)
     }
 }

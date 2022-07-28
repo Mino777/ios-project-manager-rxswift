@@ -6,8 +6,8 @@
 //
 
 import UIKit
-import Combine
 
+import RxSwift
 import SnapKit
 
 final class TodoCreateViewController: UIViewController, Alertable {
@@ -15,7 +15,7 @@ final class TodoCreateViewController: UIViewController, Alertable {
     private let todoCreateView = TodoDetailView()
     private let viewModel: TodoCreateViewModelable
 
-    private var cancellableBag = Set<AnyCancellable>()
+    private let disposeBag = DisposeBag()
     
     init(viewModel: TodoCreateViewModelable) {
         self.viewModel = viewModel
@@ -34,14 +34,15 @@ final class TodoCreateViewController: UIViewController, Alertable {
     
     private func bind() {
         viewModel.state
-            .sink { [weak self] state in
+            .withUnretained(self)
+            .subscribe { wself, state in
                 switch state {
                 case .dismissEvent:
-                    self?.coordinator?.dismiss()
+                    wself.coordinator?.dismiss()
                 case .errorEvent(message: let message):
-                    self?.showErrorAlertWithConfirmButton(message)
+                    wself.showErrorAlertWithConfirmButton(message)
                 }
-            }.store(in: &cancellableBag)
+            }.disposed(by: disposeBag)
     }
     
     private func setup() {

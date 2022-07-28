@@ -6,12 +6,12 @@
 //
 
 import UIKit
-import Combine
+
+import RxSwift
 
 final class TodoListDIContainer {
     struct Dependencies {
         unowned let todoStorage: LocalStorageable
-        unowned let remoteStorage: RemoteStorageable
         unowned let historyStorage: HistoryStorageable
     }
     
@@ -55,9 +55,9 @@ extension TodoListDIContainer {
     private func makeTodoViewModel(processType: ProcessType) -> TodoViewModel {
         let viewModel = TodoViewModel(
             processType: processType,
-            items: parentViewModel?.todoItems ?? Just([Todo]()).eraseToAnyPublisher()
+            state: parentViewModel?.todoStorageState ?? .just(.success(items: []))
         )
-        
+                
         viewModel.delegate = parentViewModel
         
         return viewModel
@@ -78,7 +78,6 @@ extension TodoListDIContainer {
     private func makeTodoListRepository() -> TodoListRepositorible {
         return TodoListRepository(
             todoLocalStorage: dependencies.todoStorage,
-            todoRemoteStorage: dependencies.remoteStorage,
             isFirstLogin: isFirstLogin
         )
     }

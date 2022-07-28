@@ -6,13 +6,13 @@
 //
 
 import UIKit
-import Combine
 
+import RxSwift
 import SnapKit
 
 final class TodoTableViewCell: UITableViewCell {
     private var viewModel: TodoCellViewModelable?
-    private var cancellableBag = Set<AnyCancellable>()
+    private let disposeBag = DisposeBag()
     
     private let todoStackView: UIStackView = {
         let stackView = UIStackView()
@@ -62,21 +62,21 @@ final class TodoTableViewCell: UITableViewCell {
         self.viewModel = viewModel
         
         viewModel.state
-            .print()
-            .sink { [weak self] state in
+            .withUnretained(self)
+            .subscribe { wself, state in
                 switch state {
                 case .todoTitleEvent(let title):
-                    self?.titleLabel.text = title
+                    wself.titleLabel.text = title
                 case .todoContentEvent(let content):
-                    self?.contentLabel.text = content
+                    wself.contentLabel.text = content
                 case .todoDeadlineEvent(let deadline):
-                    self?.deadlineLabel.text = deadline
+                    wself.deadlineLabel.text = deadline
                 case .expiredEvent:
-                    self?.deadlineLabel.textColor = .systemRed
+                    wself.deadlineLabel.textColor = .systemRed
                 case .notExpiredEvent:
-                    self?.deadlineLabel.textColor = .label
+                    wself.deadlineLabel.textColor = .label
                 }
-            }.store(in: &cancellableBag)
+            }.disposed(by: disposeBag)
         
         viewModel.cellDidBind()
     }

@@ -6,14 +6,16 @@
 //
 
 import Foundation
-import Combine
+
+import RxSwift
+import RxRelay
 
 protocol TodoHistoryTableViewModelInput {
     // empty
 }
 
 protocol TodoHistoryTableViewModelOutput {
-    var items: CurrentValueSubject<[TodoHistory], Never> { get }
+    var items: BehaviorRelay<[TodoHistory]> { get }
 }
 
 protocol TodoHistoryTableViewModelable: TodoHistoryTableViewModelInput, TodoHistoryTableViewModelOutput {}
@@ -22,12 +24,29 @@ final class TodoHistoryTableViewModel: TodoHistoryTableViewModelable {
     
     // MARK: - Output
     
-    private let historyUseCase: TodoHistoryUseCaseable
+    let items = BehaviorRelay<[TodoHistory]>(value: [])
     
-    let items: CurrentValueSubject<[TodoHistory], Never>
+    private let historyUseCase: TodoHistoryUseCaseable
+    private let disposeBag = DisposeBag()
 
     init(historyUseCase: TodoHistoryUseCaseable) {
         self.historyUseCase = historyUseCase
-        self.items = historyUseCase.todoHistoriesPublisher()
+        self.setData()
+    }
+    
+    private func setData() {
+        historyUseCase.todoHistoriesPublisher()
+            .withUnretained(self)
+            .flatMap { wself, state -> Observable<[TodoHistory]> in
+                switch state {
+                case .success(let items):
+                    return .just(items)
+                case .failure(_):
+                    return .just([])
+                }
+            }
+            .subscribe { items in
+                self.items.accept(items)
+            }.disposed(by: disposeBag)
     }
 }

@@ -6,7 +6,9 @@
 //
 
 import Foundation
-import Combine
+
+import RxSwift
+import RxRelay
 
 struct MenuType {
     let firstTitle: String
@@ -23,9 +25,12 @@ protocol TodoViewModelInput: AnyObject {
 }
 
 protocol TodoViewModelOutput {
-    var items: AnyPublisher<[Todo], Never> { get set }
+    var state: Observable<TodoStorageState> { get }
+    var items: BehaviorRelay<[Todo]> { get }
     var menuType: MenuType { get }
     var headerTitle: String { get }
+    
+    var errorEvent: PublishSubject<String> { get }
 }
 
 protocol TodoViewModelable: TodoViewModelInput, TodoViewModelOutput {}
@@ -34,9 +39,44 @@ final class TodoViewModel: TodoViewModelable {
     
     // MARK: - Output
     
-    var items: AnyPublisher<[Todo], Never>
+    let state: Observable<TodoStorageState>
+    let items = BehaviorRelay<[Todo]>(value: [])
     
-    var menuType: MenuType {
+    lazy var menuType = makeMenuType()
+    lazy var headerTitle = makeHeaderTitle()
+    let errorEvent = PublishSubject<String>()
+    
+    private let processType: ProcessType
+    private let disposeBag = DisposeBag()
+    weak var delegate: TodoViewModelInput?
+    
+    init(processType: ProcessType, state: Observable<TodoStorageState>) {
+        self.processType = processType
+        self.state = state
+        filteredItems(with: processType, state: state)
+    }
+    
+    private func filteredItems(
+        with type: ProcessType,
+        state: Observable<TodoStorageState>
+    ) {
+        state
+            .withUnretained(self)
+            .flatMap { wself, state -> Observable<[Todo]> in
+                switch state {
+                case .success(let items):
+                    return .just(items)
+                case .failure(let error):
+                    wself.errorEvent.onNext(error.localizedDescription)
+                    return .just([])
+                }
+            }
+            .subscribe { item in
+                self.items.accept(item.filter { $0.processType == type })
+            }.disposed(by: disposeBag)
+    }
+    
+    private func makeMenuType() -> MenuType {
         switch processType {
         case .todo:
             return MenuType(
@@ -62,7 +102,7 @@ final class TodoViewModel: TodoViewModelable {
         }
     }
     
-    var headerTitle: String {
+    private func makeHeaderTitle() -> String {
         switch processType {
         case .todo:
             return "TODO"
@@ -71,27 +111,6 @@ final class TodoViewModel: TodoViewModelable {
         case .done:
             return "DONE"
         }
-    }
-
-    private let processType: ProcessType
-    
-    weak var delegate: TodoViewModelInput?
-    
-    init(processType: ProcessType, items: AnyPublisher<[Todo], Never>) {
-        self.processType = processType
-        self.items = items
-        self.items = filteredItems(with: processType, items: items)
-    }
-    
-    private func filteredItems(
-        with type: ProcessType,
-        items: AnyPublisher<[Todo], Never>
-    ) -> AnyPublisher<[Todo], Never> {
-        return items
-            .compactMap { item in
-                return item.filter { $0.processType == type }
-            }
-            .eraseToAnyPublisher()
     }
 }
 

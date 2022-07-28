@@ -5,8 +5,9 @@
 //  Created by 김도연 on 2022/07/19.
 //
 
-import Combine
 import Foundation
+
+import RxSwift
 
 enum TodoCreateViewModelState {
     case dismissEvent
@@ -19,7 +20,7 @@ protocol TodoCreateViewModelInput {
 }
 
 protocol TodoCreateViewModelOutput {
-    var state: PassthroughSubject<TodoCreateViewModelState, Never> { get }
+    var state: PublishSubject<TodoCreateViewModelState> { get }
 }
 
 protocol TodoCreateViewModelable: TodoCreateViewModelInput, TodoCreateViewModelOutput {}
@@ -28,11 +29,10 @@ final class TodoCreateViewModel: TodoCreateViewModelable {
     
     // MARK: - Output
         
-    let state = PassthroughSubject<TodoCreateViewModelState, Never>()
+    let state = PublishSubject<TodoCreateViewModelState>()
 
     private let todoUseCase: TodoListUseCaseable
     private let historyUseCase: TodoHistoryUseCaseable
-    private var cancellableBag = Set<AnyCancellable>()
     
     init(todoUseCase: TodoListUseCaseable, historyUseCase: TodoHistoryUseCaseable) {
         self.todoUseCase = todoUseCase
@@ -45,7 +45,7 @@ extension TodoCreateViewModel {
     // MARK: - Input
     
     func didTapCancelButton() {
-        state.send(.dismissEvent)
+        state.onNext(.dismissEvent)
     }
     
     func didTapDoneButton(_ title: String?, _ content: String?, _ deadline: Date?) {
@@ -54,33 +54,11 @@ extension TodoCreateViewModel {
         }
         
         let todoItem = Todo(title: title, content: content, deadline: deadline)
-        createTodoItem(todoItem)
+        todoUseCase.create(todoItem)
         
         let historyItem = TodoHistory(title: "[생성] \(todoItem.title)", createdAt: Date())
-        createHistoryItem(historyItem)
+        historyUseCase.create(historyItem)
         
-        state.send(.dismissEvent)
-    }
-    
-    private func createTodoItem(_ item: Todo) {
-        todoUseCase.create(item)
-            .sink(
-                receiveCompletion: {
-                    guard case .failure(let error) = $0 else { return}
-                    self.state.send(.errorEvent(message: error.localizedDescription))
-                }, receiveValue: {}
-            )
-            .store(in: &cancellableBag)
-    }
-    
-    private func createHistoryItem(_ item: TodoHistory) {
-        historyUseCase.create(item)
-            .sink(
-                receiveCompletion: {
-                    guard case .failure(let error) = $0 else { return}
-                    self.state.send(.errorEvent(message: error.localizedDescription))
-                }, receiveValue: {}
-            )
-            .store(in: &cancellableBag)
+        state.onNext(.dismissEvent)
     }
 }

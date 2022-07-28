@@ -6,7 +6,8 @@
 //
 
 import UIKit
-import Combine
+
+import RxSwift
 
 final class TodoHistoryTableViewController: UITableViewController {
     private typealias DataSource = UITableViewDiffableDataSource<Int, TodoHistory>
@@ -15,7 +16,7 @@ final class TodoHistoryTableViewController: UITableViewController {
     weak var coordinator: TodoHistoryViewCoordinator?
     private let viewModel: TodoHistoryTableViewModelable
     
-    private var cancellableBag = Set<AnyCancellable>()
+    private let disposeBag = DisposeBag()
     private var dataSource: DataSource?
     
     init(_ viewModel: TodoHistoryTableViewModelable) {
@@ -41,10 +42,11 @@ final class TodoHistoryTableViewController: UITableViewController {
     
     private func bind() {
         viewModel.items
-            .sink { [weak self] items in
-                self?.applySnapshot(items)
+            .withUnretained(self)
+            .subscribe { wself, items in
+                wself.applySnapshot(items)
             }
-            .store(in: &cancellableBag)
+            .disposed(by: disposeBag)
     }
     
     private func registerTableViewCell() {
