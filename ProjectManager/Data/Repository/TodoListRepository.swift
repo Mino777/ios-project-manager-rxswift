@@ -6,55 +6,33 @@
 //
 
 import Foundation
-import Combine
+
+import RxSwift
 
 final class TodoListRepository {
     private unowned let todoLocalStorage: LocalStorageable
-    private unowned let todoRemoteStorage: RemoteStorageable
     private let isFirstLogin: Bool
-    private var cancellableBag = Set<AnyCancellable>()
     
-    init(todoLocalStorage: LocalStorageable, todoRemoteStorage: RemoteStorageable,
-         isFirstLogin: Bool
-    ) {
+    init(todoLocalStorage: LocalStorageable, isFirstLogin: Bool) {
         self.todoLocalStorage = todoLocalStorage
-        self.todoRemoteStorage = todoRemoteStorage
         self.isFirstLogin = isFirstLogin
     }
 }
 
 extension TodoListRepository: TodoListRepositorible {
-    func create(_ item: Todo) -> AnyPublisher<Void, StorageError> {
+    func create(_ item: Todo) {
         return todoLocalStorage.create(item)
     }
     
-    func todosPublisher() -> CurrentValueSubject<[Todo], Never> {
+    func todosPublisher() -> BehaviorSubject<TodoStorageState> {
         return todoLocalStorage.todosPublisher()
     }
     
-    func update(_ item: Todo) -> AnyPublisher<Void, StorageError> {
+    func update(_ item: Todo) {
         return todoLocalStorage.update(item)
     }
     
-    func delete(item: Todo) -> AnyPublisher<Void, StorageError> {
+    func delete(item: Todo) {
         return todoLocalStorage.delete(item)
-    }
-    
-    func synchronizeDatabase() {
-        if isFirstLogin {
-            todoRemoteStorage.backup(todoLocalStorage.todosPublisher().value)
-        } else {
-            todoRemoteStorage.todosPublisher()
-                .sink { _ in
-                    
-                } receiveValue: { [weak self] items in
-                    items.forEach { item in
-                        _ = self?.todoLocalStorage.create(item)
-                    }
-                }
-                .store(in: &cancellableBag)
-            
-            UserDefaults.standard.set(true, forKey: "isFirstLogin")
-        }
     }
 }

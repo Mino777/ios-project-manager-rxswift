@@ -6,8 +6,8 @@
 //
 
 import Foundation
-import Combine
 
+import RxSwift
 import RealmSwift
 
 enum StorageError: LocalizedError {
@@ -31,54 +31,58 @@ enum StorageError: LocalizedError {
 }
 
 protocol LocalStorageable: AnyObject {
-    func create(_ item: Todo) -> AnyPublisher<Void, StorageError>
-    func todosPublisher() -> CurrentValueSubject<[Todo], Never>
-    func update(_ item: Todo) -> AnyPublisher<Void, StorageError>
-    func delete(_ item: Todo) -> AnyPublisher<Void, StorageError>
+    func create(_ item: Todo)
+    func todosPublisher() -> BehaviorSubject<TodoStorageState>
+    func update(_ item: Todo)
+    func delete(_ item: Todo)
+}
+
+enum TodoStorageState {
+    case success(items: [Todo])
+    case failure(error: StorageError)
 }
 
 final class RealmStorage: LocalStorageable {
     private let realm = try! Realm()
-    private let realmSubject = CurrentValueSubject<[Todo], Never>([])
+    private let realmSubject = BehaviorSubject<TodoStorageState>(value: .success(items: []))
     
     init() {
-        realmSubject.send(readAll())
+        realmSubject.onNext(.success(items: readAll()))
     }
     
-    func create(_ item: Todo) -> AnyPublisher<Void, StorageError> {
-        return write(.createFail) {
-            realm.add(transferToTodoRealm(with: item))
-            realmSubject.send(readAll())
+    func create(_ item: Todo) {
+        write(.createFail) {
+            self.realm.add(self.transferToTodoRealm(with: item))
+            self.realmSubject.onNext(.success(items: self.readAll()))
         }
     }
         
-    func todosPublisher() -> CurrentValueSubject<[Todo], Never> {
+    func todosPublisher() -> BehaviorSubject<TodoStorageState> {
         return realmSubject
     }
     
-    func update(_ item: Todo) -> AnyPublisher<Void, StorageError> {
-        return write(.updateFail) {
-            realm.add(transferToTodoRealm(with: item), update: .modified)
-            realmSubject.send(readAll())
+    func update(_ item: Todo) {
+        write(.updateFail) {
+            self.realm.add(self.transferToTodoRealm(with: item), update: .modified)
+            self.realmSubject.onNext(.success(items: self.readAll()))
         }
     }
     
-    func delete(_ item: Todo) -> AnyPublisher<Void, StorageError> {
-        return write(.deleteFail) {
-            guard let realmModel = realm.object(ofType: TodoRealm.self, forPrimaryKey: item.id) else {
+    func delete(_ item: Todo) {
+        write(.deleteFail) {
+            guard let realmModel = self.realm.object(ofType: TodoRealm.self, forPrimaryKey: item.id) else {
                 return
             }
-            realm.delete(realmModel)
-            realmSubject.send(readAll())
+            self.realm.delete(realmModel)
+            self.realmSubject.onNext(.success(items: self.readAll()))
         }
     }
     
-    private func write(_ realmError: StorageError, _ work: () -> Void) -> AnyPublisher<Void, StorageError> {
+    private func write(_ realmError: StorageError, _ work: @escaping () -> Void) {
         do {
-            try realm.write { work() }
-            return Empty<Void, StorageError>().eraseToAnyPublisher()
+            try self.realm.write { work() }
         } catch {
-            return Fail<Void, StorageError>(error: realmError).eraseToAnyPublisher()
+            realmSubject.onNext(.failure(error: realmError))
         }
     }
     

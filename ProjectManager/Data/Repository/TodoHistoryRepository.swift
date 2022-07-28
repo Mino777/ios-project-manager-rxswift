@@ -6,7 +6,8 @@
 //
 
 import Foundation
-import Combine
+
+import RxSwift
 
 final class TodoHistoryRepository {
     private unowned let storage: HistoryStorageable
@@ -17,15 +18,15 @@ final class TodoHistoryRepository {
 }
 
 extension TodoHistoryRepository: TodoHistoryRepositorible {
-    func create(_ item: TodoHistory) -> AnyPublisher<Void, StorageError> {
+    func create(_ item: TodoHistory) {
         return storage.create(item)
     }
     
-    func todoHistoriesPublisher() -> CurrentValueSubject<[TodoHistory], Never> {
+    func todoHistoriesPublisher() -> BehaviorSubject<HistoryStorageState> {
         return storage.todoHistoriesPublisher()
     }
     
-    func delete(item: TodoHistory) -> AnyPublisher<Void, StorageError> {
+    func delete(item: TodoHistory) {
         return storage.delete(item)
     }
 }

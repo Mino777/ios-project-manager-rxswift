@@ -5,51 +5,55 @@
 //  Created by 김도연 on 2022/07/19.
 //
 
-import Combine
-
+import RxSwift
 import RealmSwift
 
 protocol HistoryStorageable: AnyObject {
-    func create(_ item: TodoHistory) -> AnyPublisher<Void, StorageError>
-    func todoHistoriesPublisher() -> CurrentValueSubject<[TodoHistory], Never>
-    func delete(_ item: TodoHistory) -> AnyPublisher<Void, StorageError>
+    func create(_ item: TodoHistory)
+    func todoHistoriesPublisher() -> BehaviorSubject<HistoryStorageState>
+    func delete(_ item: TodoHistory)
 }
+
+enum HistoryStorageState {
+    case success(items: [TodoHistory])
+    case failure(error: StorageError)
+}
+
 
 final class HistoryStorage: HistoryStorageable {
     private let realm = try! Realm()
-    private let realmSubject = CurrentValueSubject<[TodoHistory], Never>([])
+    private let realmSubject = BehaviorSubject<HistoryStorageState>(value: .success(items: []))
     
     init() {
-        realmSubject.send(readAll())
+        realmSubject.onNext(.success(items: readAll()))
     }
     
-    func create(_ item: TodoHistory) -> AnyPublisher<Void, StorageError> {
+    func create(_ item: TodoHistory) {
         return write(.createFail) {
-            realm.add(transferToTodoRealm(with: item))
-            realmSubject.send(readAll())
+            self.realm.add(self.transferToTodoRealm(with: item))
+            self.realmSubject.onNext(.success(items: self.readAll()))
         }
     }
         
-    func todoHistoriesPublisher() -> CurrentValueSubject<[TodoHistory], Never> {
+    func todoHistoriesPublisher() -> BehaviorSubject<HistoryStorageState> {
         return realmSubject
     }
     
-    func delete(_ item: TodoHistory) -> AnyPublisher<Void, StorageError> {
+    func delete(_ item: TodoHistory) {
         return write(.deleteFail) {
-            guard let realmModel = realm.object(ofType: TodoRealm.self, forPrimaryKey: item.id) else {
+            guard let realmModel = self.realm.object(ofType: TodoRealm.self, forPrimaryKey: item.id) else {
                 return
             }
-            realm.delete(realmModel)
-            realmSubject.send(readAll())
+            self.realm.delete(realmModel)
+            self.realmSubject.onNext(.success(items: self.readAll()))
         }
     }
     
-    private func write(_ realmError: StorageError, _ work: () -> Void) -> AnyPublisher<Void, StorageError> {
+    private func write(_ realmError: StorageError, _ work: @escaping () -> Void) {
         do {
-            try realm.write { work() }
-            return Empty<Void, StorageError>().eraseToAnyPublisher()
+            try self.realm.write { work() }
         } catch {
-            return Fail<Void, StorageError>(error: realmError).eraseToAnyPublisher()
+            realmSubject.onNext(.failure(error: realmError))
         }
     }
     
