@@ -6,10 +6,10 @@
 //
 
 import Foundation
-import Combine
+import RxSwift
 
 protocol TodoHistoryRepositorible {
-    func create(_ item: TodoHistory) -> AnyPublisher<Void, StorageError>
-    func todoHistoriesPublisher() -> CurrentValueSubject<[TodoHistory], Never>
-    func delete(item: TodoHistory) -> AnyPublisher<Void, StorageError>
+    func create(_ item: TodoHistory)
+    func todoHistoriesPublisher() -> BehaviorSubject<HistoryStorageState>
+    func delete(item: TodoHistory)
 }

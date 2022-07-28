@@ -6,40 +6,37 @@
 //
 
 import Foundation
-import Combine
+
+import RxSwift
+import RxRelay
 
 protocol TodoListUseCaseable {
-    func create(_ item: Todo) -> AnyPublisher<Void, StorageError>
-    func todosPublisher() -> CurrentValueSubject<[Todo], Never>
-    func update(_ item: Todo) -> AnyPublisher<Void, StorageError>
-    func delete(item: Todo) -> AnyPublisher<Void, StorageError>
-    func synchronizeDatabase()
+    func create(_ item: Todo)
+    func todosPublisher() -> BehaviorSubject<TodoStorageState>
+    func update(_ item: Todo)
+    func delete(item: Todo)
 }
 
 final class TodoListUseCase: TodoListUseCaseable {
     private let repository: TodoListRepositorible
-    
+
     init(repository: TodoListRepositorible) {
         self.repository = repository
     }
     
-    func create(_ item: Todo) -> AnyPublisher<Void, StorageError> {
+    func create(_ item: Todo) {
         return repository.create(item)
     }
     
-    func todosPublisher() -> CurrentValueSubject<[Todo], Never> {
+    func todosPublisher() -> BehaviorSubject<TodoStorageState> {
         return repository.todosPublisher()
     }
     
-    func update(_ item: Todo) -> AnyPublisher<Void, StorageError> {
+    func update(_ item: Todo) {
         return repository.update(item)
     }
     
-    func delete(item: Todo) -> AnyPublisher<Void, StorageError> {
+    func delete(item: Todo) {
         return repository.delete(item: item)
-    }
-    
-    func synchronizeDatabase() {
-        repository.synchronizeDatabase()
     }
 }

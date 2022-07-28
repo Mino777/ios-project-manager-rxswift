@@ -6,12 +6,11 @@
 //
 
 import Foundation
-import Combine
+import RxSwift
 
 protocol TodoListRepositorible {
-    func create(_ item: Todo) -> AnyPublisher<Void, StorageError>
-    func todosPublisher() -> CurrentValueSubject<[Todo], Never>
-    func update(_ item: Todo) -> AnyPublisher<Void, StorageError>
-    func delete(item: Todo) -> AnyPublisher<Void, StorageError>
-    func synchronizeDatabase()
+    func create(_ item: Todo)
+    func todosPublisher() -> BehaviorSubject<TodoStorageState>
+    func update(_ item: Todo)
+    func delete(item: Todo)
 }

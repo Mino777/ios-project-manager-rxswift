@@ -6,12 +6,13 @@
 //
 
 import Foundation
-import Combine
+
+import RxSwift
 
 protocol TodoHistoryUseCaseable {
-    func create(_ item: TodoHistory) -> AnyPublisher<Void, StorageError>
-    func todoHistoriesPublisher() -> CurrentValueSubject<[TodoHistory], Never>
-    func delete(item: TodoHistory) -> AnyPublisher<Void, StorageError>
+    func create(_ item: TodoHistory)
+    func todoHistoriesPublisher() -> BehaviorSubject<HistoryStorageState>
+    func delete(item: TodoHistory)
 }
 
 final class TodoHistoryUseCase: TodoHistoryUseCaseable {
@@ -21,15 +22,15 @@ final class TodoHistoryUseCase: TodoHistoryUseCaseable {
         self.repository = repository
     }
     
-    func create(_ item: TodoHistory) -> AnyPublisher<Void, StorageError> {
+    func create(_ item: TodoHistory) {
         return repository.create(item)
     }
     
-    func todoHistoriesPublisher() -> CurrentValueSubject<[TodoHistory], Never> {
+    func todoHistoriesPublisher() -> BehaviorSubject<HistoryStorageState> {
         return repository.todoHistoriesPublisher()
     }
     
-    func delete(item: TodoHistory) -> AnyPublisher<Void, StorageError> {
+    func delete(item: TodoHistory) {
         return repository.delete(item: item)
     }
 }
